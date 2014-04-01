@@ -368,7 +368,6 @@ public class Loader extends AutomatedSql {
                 }
             }
             try {
-
                 if (isPrimitive) {
                     JSONArray object = new JSONArray(rs.getString(i));
                     Object newArray = Array.newInstance(type.getComponentType(), object.length());

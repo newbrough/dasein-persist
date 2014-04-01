@@ -428,7 +428,10 @@ public class AutomatedSql extends Execution {
             }
             else if( t.isArray() ){
                 Class<?> componentType = t.getComponentType();
-                int length = Array.getLength(ob);
+                int length = 0;
+                if(ob != null) {
+                    length = Array.getLength(ob);
+                }
                 JSONArray serialized = new JSONArray();
                 Class[] primitiveTypes = new Class[]{
                         Boolean.class,
