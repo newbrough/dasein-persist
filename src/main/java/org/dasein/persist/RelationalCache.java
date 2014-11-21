@@ -37,6 +37,7 @@ import org.dasein.util.DaseinUtilTasks;
 import org.dasein.util.JitCollection;
 import org.dasein.util.Jiterator;
 import org.dasein.util.JiteratorFilter;
+import org.dasein.util.MapLoader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -306,7 +307,7 @@ public final class RelationalCache<T extends CachedItem> extends PersistentCache
                     i++;
                 }
             }
-            return this.load(getLoader(terms, order), filter, toParams(terms));
+            return this.load(getLoader(terms, order), filter, toParams(terms), false);
         }
         finally {
             logger.debug("exit - find(SearchTerm[], JiteratorFilter, Boolean, String...)");
@@ -331,13 +332,13 @@ public final class RelationalCache<T extends CachedItem> extends PersistentCache
                     
                     terms[0] = new SearchTerm((String)args[0], Operator.EQUALS, args[1]);
                     try {
-                        list = RelationalCache.this.load(getLoader(terms, null), null, toParams(terms));
+                        list = RelationalCache.this.load(getLoader(terms, null), null, toParams(terms), true);
                     }
                     catch( PersistenceException e ) {
                         try {
                             try { Thread.sleep(1000L); }
                             catch( InterruptedException ignore ) { }
-                            list = RelationalCache.this.load(getLoader(terms, null), null, toParams(terms));
+                            list = RelationalCache.this.load(getLoader(terms, null), null, toParams(terms), true);
                         }
                         catch( Throwable forgetIt ) {
                             logger.error(forgetIt.getMessage(), forgetIt);
@@ -444,11 +445,17 @@ public final class RelationalCache<T extends CachedItem> extends PersistentCache
         return params;
     }
 
-    private class RelationalCacheTask implements Runnable {
+    /** from list of results, 
+     *  find corresponding values from cache if available (otherwise use loader),
+     *  put resulting objects into iterator.
+     *  
+     *  may result in stale data in iterator even if results contains fresh
+     */
+    private class UpdateIteratorFromCacheOrLoader implements Runnable {
         private final Jiterator<T> it;
         private final Map<String,Object> results;
 
-        private RelationalCacheTask(Jiterator<T> it, Map<String,Object> results) {
+        private UpdateIteratorFromCacheOrLoader(Jiterator<T> it, Map<String,Object> results) {
             this.it = it;
             this.results = results;
         }
@@ -477,8 +484,48 @@ public final class RelationalCache<T extends CachedItem> extends PersistentCache
         }
     }
     
+    /** from list of results only,
+     * construct objects and add to iterator
+     * 
+     * does not use cached values.
+     */
+    private class UpdateIteratorFromResults implements Runnable {
+        private final Jiterator<T> it;
+        private final Map<String,Object> results;
+
+        private UpdateIteratorFromResults(Jiterator<T> it, Map<String,Object> results) {
+            this.it = it;
+            this.results = results;
+        }
+
+        @Override
+        public void run() {
+            try {
+                final MapLoader<T> loader = new MapLoader<T>(getCache().getTarget());
+                for( Map<String,Object> map: (Collection<Map<String,Object>>)this.results.get(Loader.LISTING) ) {
+                    for( String fieldName : map.keySet() ) {
+                        LookupDelegate delegate = getLookupDelegate(fieldName);
+
+                        if( delegate != null && !delegate.validate((String)map.get(fieldName)) ) {
+                            throw new PersistenceException("Unable to validate " + fieldName + " value of " + map.get(fieldName));
+                        }
+                    }
+                    
+                    this.it.push(loader.load(map));
+                }
+                this.it.complete();
+            }
+            catch( Exception e ) {
+                this.it.setLoadException(e);
+            }
+            catch( Throwable t ) {
+                this.it.setLoadException(new RuntimeException(t));
+            }
+        }
+    }
+    
     @SuppressWarnings("unchecked")
-    private Collection<T> load(Loader loader, JiteratorFilter<T> filter, Map<String,Object> params) throws PersistenceException {
+    private Collection<T> load(Loader loader, JiteratorFilter<T> filter, Map<String,Object> params, boolean readCache) throws PersistenceException {
         logger.debug("enter - load(Class,SearchTerm...)");
         try {
             Transaction xaction = Transaction.getInstance(ds, true);
@@ -491,7 +538,9 @@ public final class RelationalCache<T extends CachedItem> extends PersistentCache
                 results = xaction.execute(loader, params, readDataSource);
                 xaction.commit();
 
-                DaseinUtilTasks.submit(new RelationalCacheTask(it, results));
+                if(readCache) { DaseinUtilTasks.submit(new UpdateIteratorFromCacheOrLoader(it, results)); }
+                else { DaseinUtilTasks.submit(new UpdateIteratorFromResults(it, results)); }
+                
                 return new JitCollection<T>(it, getEntityClassName());
             }
             catch( PersistenceException e ) {
