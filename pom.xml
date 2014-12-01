@@ -5,7 +5,7 @@
 
     <groupId>org.dasein</groupId>
     <artifactId>dasein-persist</artifactId>
-    <version>x2014.11.20</version>
+    <version>x2014.12.1</version>
     <packaging>jar</packaging>
 
     <name>dasein-persist</name>
