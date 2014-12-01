@@ -23,11 +23,31 @@ import java.util.TreeSet;
 @SuppressWarnings("unused")
 public class DaseinPersist {
     private final Logger logger = LoggerFactory.getLogger(DaseinPersist.class);
-    private final HashMap<String, PersistentCache<? extends CachedItem>> caches = new HashMap<String, PersistentCache<? extends CachedItem>>();
+    private final HashMap<String, PersistentCache<? extends CachedItem>> caches = new HashMap<>();
     private final DataSource dataSource;
+    private final PersistentCacheFactory cacheFactory;
+
+    private class RelationalCacheFactory implements PersistentCacheFactory{
+        private final DataSource source;
+
+        public RelationalCacheFactory(DataSource source){
+            this.source = source;
+        }
+
+        @Override
+        public <T extends CachedItem> PersistentCache<T> getCacheInstance(Class<T> cacheClass) {
+            return new RelationalCache<>(source);
+        }
+    }
 
     public DaseinPersist(DataSource ds) {
         this.dataSource = ds;
+        this.cacheFactory = new RelationalCacheFactory(dataSource);
+    }
+
+    public DaseinPersist(DataSource ds, PersistentCacheFactory cacheFactory){
+        this.dataSource = ds;
+        this.cacheFactory = cacheFactory;
     }
 
     public Transaction getTransaction(boolean readOnly) {
@@ -124,7 +144,7 @@ public class DaseinPersist {
             }
         }
 
-        TreeSet<Key> keys = new TreeSet<Key>();
+        TreeSet<Key> keys = new TreeSet<>();
         Class<?> cls = forClass;
 
         while (!cls.getName().equals(Object.class.getName())) {
@@ -178,7 +198,7 @@ public class DaseinPersist {
             }
             cls = cls.getSuperclass();
         }
-        cache = new RelationalCache<T>(this.dataSource);
+        cache = this.cacheFactory.getCacheInstance(forClass);
         cache.initBase(forClass, alternateEntytName, schemaVersion, mappers, new Key(primaryKey), keys.toArray(new Key[keys.size()]));
         synchronized (caches) {
             PersistentCache<T> c = (PersistentCache<T>) caches.get(className);
@@ -189,5 +209,9 @@ public class DaseinPersist {
             }
         }
         return cache;
+    }
+
+    public DataSource getDataSource() {
+        return dataSource;
     }
 }
