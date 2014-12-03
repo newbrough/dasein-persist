@@ -57,7 +57,8 @@ public final class RelationalCache<T extends CachedItem> extends PersistentCache
     private String            writeDataSource   = null;
     private final DataSource        ds;
 
-    public RelationalCache(DataSource ds) {
+    public RelationalCache(DataSource ds, Sequencer sequencer) {
+        super(sequencer);
         this.ds = ds;
     }
     

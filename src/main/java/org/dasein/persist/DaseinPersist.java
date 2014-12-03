@@ -26,6 +26,7 @@ public class DaseinPersist {
     private final HashMap<String, PersistentCache<? extends CachedItem>> caches = new HashMap<>();
     private final DataSource dataSource;
     private final PersistentCacheFactory cacheFactory;
+    private final SequencerFactory sequencerFactory;
 
     private class RelationalCacheFactory implements PersistentCacheFactory{
         private final DataSource source;
@@ -35,18 +36,32 @@ public class DaseinPersist {
         }
 
         @Override
-        public <T extends CachedItem> PersistentCache<T> getCacheInstance(Class<T> cacheClass) {
-            return new RelationalCache<>(source);
+        public <T extends CachedItem> PersistentCache<T> getCacheInstance(Class<T> cacheClass, String primaryKey) {
+            return new RelationalCache<>(source, sequencerFactory.getSequencer(cacheClass.getName() + "." + primaryKey));
         }
     }
 
     public DaseinPersist(DataSource ds) {
         this.dataSource = ds;
         this.cacheFactory = new RelationalCacheFactory(dataSource);
+        this.sequencerFactory = new SequencerFactory(dataSource);
     }
 
     public DaseinPersist(DataSource ds, PersistentCacheFactory cacheFactory){
         this.dataSource = ds;
+        this.cacheFactory = cacheFactory;
+        this.sequencerFactory = new SequencerFactory(dataSource);
+    }
+
+    public DaseinPersist(DataSource ds, SequencerFactory sequencerFactory){
+        this.dataSource = ds;
+        this.sequencerFactory = sequencerFactory;
+        this.cacheFactory = new RelationalCacheFactory(dataSource);
+    }
+
+    public DaseinPersist(DataSource ds, PersistentCacheFactory cacheFactory, SequencerFactory sequencerFactory){
+        this.dataSource = ds;
+        this.sequencerFactory = sequencerFactory;
         this.cacheFactory = cacheFactory;
     }
 
@@ -56,6 +71,10 @@ public class DaseinPersist {
 
     public Transaction getTransaction(){
         return getTransaction(false);
+    }
+
+    public Sequencer getSequencer(String name){
+        return this.sequencerFactory.getSequencer(name);
     }
 
     public <T extends CachedItem> PersistentCache<T> getCache(Class<T> forClass) throws PersistenceException {
@@ -198,7 +217,7 @@ public class DaseinPersist {
             }
             cls = cls.getSuperclass();
         }
-        cache = this.cacheFactory.getCacheInstance(forClass);
+        cache = this.cacheFactory.getCacheInstance(forClass, primaryKey);
         cache.initBase(forClass, alternateEntytName, schemaVersion, mappers, new Key(primaryKey), keys.toArray(new Key[keys.size()]));
         synchronized (caches) {
             PersistentCache<T> c = (PersistentCache<T>) caches.get(className);

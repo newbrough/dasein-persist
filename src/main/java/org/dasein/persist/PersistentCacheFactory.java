@@ -10,5 +10,5 @@ import org.dasein.util.CachedItem;
  */
 public interface PersistentCacheFactory {
 
-    <T extends CachedItem> PersistentCache<T> getCacheInstance(Class<T> cacheClass);
+    <T extends CachedItem> PersistentCache<T> getCacheInstance(Class<T> cacheClass, String primaryKey);
 }

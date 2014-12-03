@@ -34,10 +34,7 @@ import java.util.Properties;
 /**
  * <p>
  * Provides a generic interface for sequence generation that may be
- * implemented by a number of different sequence providers. You request
- * sequencer instances by calling {@link #getInstance(String)} with the
- * name of the sequence or {@link #getInstance(Class)} with the class for which
- * the sequence should be unique. You may configure what sequencer is used through
+ * implemented by a number of different sequence providers. You may configure what sequencer is used through
  * the configuration file <i>dasein-persistence.properties</i>. You
  * specify a concrete sequencer using the following:<br/>
  * <code>dasein.sequencer.NAME=CLASSNAME</code>
@@ -62,128 +59,14 @@ import java.util.Properties;
  * @author George Reese
  */
 public abstract class Sequencer {
-    static public final String PROPERTIES = "/dasein-persistence.properties";
-    
     static private final Logger logger = LoggerFactory.getLogger(Sequencer.class);
 
-    /**
-     * Class for the default sequencer, set to{@link DaseinSequencer}.class
-     * by default.
-     */
-    static private final Class<? extends Sequencer> defaultSequencer;
     /**
      * All sequencers currently in memory.
      */
     static private final Map<String,Sequencer>      sequencers       = new HashMap<String,Sequencer>();
 
-    /**
-     * Loads the sequencers from the dasein-persistence.properties
-     * configuration file.
-     */
-    static {
-        Class<? extends Sequencer> def = DaseinSequencer.class;
-        
-        try {
-            InputStream is = Sequencer.class.getResourceAsStream(PROPERTIES);
-            Properties props = new Properties();
-            Enumeration<?> propenum;
 
-            if( is != null ) {
-                props.load(is);
-            }
-            propenum = props.propertyNames();
-            while( propenum.hasMoreElements() ) {
-                String nom = (String)propenum.nextElement();
-
-                if( nom.startsWith("dasein.sequencer.") ) {
-                    String[] parts = nom.split("\\.");
-                    String val;
-
-                    val = props.getProperty(nom);
-                    nom = parts[2];
-                    try {
-                        if( nom.equalsIgnoreCase("default") ) {
-                            @SuppressWarnings("unchecked") Class<? extends Sequencer> seq = (Class<? extends Sequencer>)Class.forName(val);
-                            
-                            def = seq;
-                        }
-                        else {
-                            Sequencer seq;
-
-                            seq = (Sequencer)Class.forName(val).newInstance();
-                            seq.setName(nom);
-                            sequencers.put(nom, seq);
-                        }
-                    }
-                    catch( Exception ignore ) {
-                        /* ignore */
-                    }
-                }
-            }
-        }
-        catch( Exception e ) {
-            logger.error(e.getMessage(), e);
-        }
-        defaultSequencer = def;
-    }
-    
-    /**
-     * Looks to see if a sequencer has been generated for the sequence
-     * with the specified name. If not, it will instantiate one.
-     * Multiple calls to this method with the same name are guaranteed
-     * to receive the same sequencer object. For best performance,
-     * classes should save a reference to the sequencer once they get it
-     * in order to avoid the overhead of a <code>HashMap</code> lookup.
-     * @param name the name of the desired sequencer
-     * @return the sequencer with the specified name
-     */
-    static public final Sequencer getInstance(String name) {
-        logger.debug("enter - getTransaction()");
-        try {
-            Sequencer seq = null;
-            
-            if( sequencers.containsKey(name) ) {
-                seq = sequencers.get(name);
-            }
-            if( seq != null ) {
-                return seq;
-            }
-            synchronized( sequencers ) {
-                // redundant due to the non-synchronized calls above done for performance
-                if( !sequencers.containsKey(name) ) {
-                    try {
-                        seq = defaultSequencer.newInstance();
-                    }
-                    catch( Exception e ) {
-                        logger.error(e.getMessage(), e);
-                        return null;
-                    }
-                    seq.setName(name);
-                    sequencers.put(name, seq);
-                    return seq;
-                }
-                else {
-                    return sequencers.get(name);
-                }
-            }
-        }
-        finally {
-            logger.debug("exit - getTransaction()");
-        }
-    }
-
-    /**
-     * Returns a sequencer that will provide unique identifiers across all instances
-     * of the specified class. This method is simply a convenience method for calling
-     * {@link #getInstance(String)} where the name being used for the desired
-     * sequence is the name of the class passed to this method.
-     * @param cls the class for which unique IDs are desired
-     * @return a sequencer that generates unique IDs for the specified class
-     */
-    static public Sequencer getInstance(Class<?> cls) {
-        return getInstance(cls.getName());
-    }
-    
     /**
      * The name of this sequencer.
      */

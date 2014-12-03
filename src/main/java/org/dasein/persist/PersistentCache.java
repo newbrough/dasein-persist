@@ -39,6 +39,7 @@ import java.util.*;
 
 public abstract class PersistentCache<T extends CachedItem> {
     static private final Logger logger = LoggerFactory.getLogger(PersistentCache.class);
+    private final Sequencer sequencer;
 
     static public class EntityJoin {
         public Class<? extends CachedItem> joinEntity;
@@ -55,7 +56,9 @@ public abstract class PersistentCache<T extends CachedItem> {
     private String                                      schemaVersion   = null;
     private Key[]                                       secondaryKeys   = null;
 
-    public PersistentCache() {}
+    public PersistentCache(Sequencer sequencer) {
+        this.sequencer = sequencer;
+    }
 
     public String getEntityClassName() {
         return getTarget().getName();
@@ -294,7 +297,7 @@ public abstract class PersistentCache<T extends CachedItem> {
     }
 
     public long getNewKeyValue() throws PersistenceException {
-        return Sequencer.getInstance(getEntityClassName() + "." + getPrimaryKeyField()).next();
+        return sequencer.next();
     }
 
     public abstract String getSchema() throws PersistenceException;

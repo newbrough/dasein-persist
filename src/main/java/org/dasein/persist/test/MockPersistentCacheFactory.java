@@ -30,6 +30,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Mock implementation of a persistent cache for users of Dasein Persistence to run tests against without
@@ -43,14 +44,23 @@ import java.util.TreeSet;
 public class MockPersistentCacheFactory implements PersistentCacheFactory{
 
     @Override
-    public <T extends CachedItem> PersistentCache<T> getCacheInstance(Class<T> cacheClass) {
+    public <T extends CachedItem> PersistentCache<T> getCacheInstance(Class<T> cacheClass, String primaryKey) {
         return new MockPersistentCache<T>();
     }
 
     class MockPersistentCache<T extends CachedItem> extends PersistentCache<T> {
         private final HashMap<Object,T> cache = new HashMap<Object, T>();
 
-        public MockPersistentCache() { }
+        private final AtomicInteger counter = new AtomicInteger();
+
+        public MockPersistentCache() {
+            super(new DatabaseKeyGenerator(null));
+        }
+
+        @Override
+        public long getNewKeyValue() throws PersistenceException {
+            return this.counter.getAndIncrement();
+        }
 
         @Override
         public T create(Transaction xaction, Map<String, Object> state) throws PersistenceException {

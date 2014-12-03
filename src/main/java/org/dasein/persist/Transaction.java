@@ -93,11 +93,7 @@ public class Transaction {
     static public final String MAID_MAXSECONDS = "dasein.persist.maid.maxseconds";
     static public final String MAID_WARNSECONDS = "dasein.persist.maid.warnseconds";
 
-    static private final boolean tracking;
-    static {
-        loadProperties();
-        tracking = !isMaidDisabled();
-    }
+    static private final boolean tracking = true;
 
     /**
      * Clean up transactions.
@@ -111,7 +107,6 @@ public class Transaction {
             long freq = getMaidFrequencyMs();
             while (true) {
                 if (cycleCount % 21 == 20) {
-                    loadProperties();
                     warn = getMaidWarnMs();
                     max = getMaidMaxMs();
                     freq = getMaidFrequencyMs();
@@ -166,7 +161,6 @@ public class Transaction {
         }
         Transaction xaction = new Transaction(ds, xid, readOnly);
         if (maidLaunched.compareAndSet(false, true)) {
-            loadProperties();
             if (!isMaidDisabled()) {
                 DaseinUtilTasks.submit(new TransactionMaid());
             }
@@ -674,22 +668,6 @@ public class Transaction {
         }
     }
 
-    static void loadProperties() {
-        try {
-            InputStream is = DaseinSequencer.class.getResourceAsStream(DaseinSequencer.PROPERTIES);
-            try {
-                if( is != null ) {
-                    properties.load(is);
-                }
-            } finally {
-                if( is != null ) {
-                    is.close();
-                }
-            }
-        } catch (Throwable t) {
-            logger.error("Problem loading dasein persist transaction properties: " + t.getMessage());
-        }
-    }
 
 
     static boolean isMaidDisabled() {

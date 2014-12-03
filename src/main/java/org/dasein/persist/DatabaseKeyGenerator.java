@@ -34,8 +34,9 @@ import javax.sql.DataSource;
 
 
 public class DatabaseKeyGenerator extends Sequencer {
-    static private final long    defaultInterval;
-    static private final String  dataSourceName;
+    private final long    defaultInterval;
+    private final DataSource ds;
+
     
     static private final String FIND_SEQ =
         "SELECT next_key, spacing, last_update " +
@@ -68,46 +69,21 @@ public class DatabaseKeyGenerator extends Sequencer {
     static private final int UPD_WHERE_KEY    = 4;
     static private final int UPD_WHERE_UPDATE = 5;
     
-    static {
-        Properties props = new Properties();
-        String dsn, istr;
-        long di;
-        
-        try {
-            InputStream is = DaseinSequencer.class.getResourceAsStream(PROPERTIES);
 
-            if( is != null ) {
-                props.load(is);
-            }
-        }
-        catch( Exception e ) {
-            LoggerFactory.getLogger(DatabaseKeyGenerator.class).error("Problem loading " + PROPERTIES + ": " + e.getMessage(), e);
-        }
-        dsn = props.getProperty("dasein.seqdsn");
-        dataSourceName = dsn;
-        istr = props.getProperty("dasein.seqint");
-        if( istr == null ) {
-            di = 100L; 
-        }
-        else {
-            try {
-                di = Long.parseLong(istr);
-            }
-            catch( NumberFormatException e ) {
-                di = 100L;
-            }
-        }
-        defaultInterval = di;
-    }
-    
     private long interval;
     private long nextId;
     private long nextSeed;
-    
-    public DatabaseKeyGenerator() { 
+
+    public DatabaseKeyGenerator(DataSource ds){
+        this(ds, 5);
+    }
+
+    public DatabaseKeyGenerator(DataSource ds, long defaultInterval) {
+        this.defaultInterval = defaultInterval;
         nextId = 0L;
         interval = defaultInterval;
         nextSeed = nextId;
+        this.ds = ds;
     }
     
     private transient volatile Logger logger = null;
@@ -134,9 +110,6 @@ public class DatabaseKeyGenerator extends Sequencer {
             ResultSet rs = null;
             
             try {
-                InitialContext ctx = new InitialContext();
-                DataSource ds = (DataSource)ctx.lookup(dataSourceName);
-                
                 conn = ds.getConnection();
                 conn.setReadOnly(false);
                 stmt = conn.prepareStatement(INSERT_SEQ);
@@ -256,9 +229,6 @@ public class DatabaseKeyGenerator extends Sequencer {
             ResultSet rs = null;
             
             try {
-                InitialContext ctx = new InitialContext();
-                DataSource ds = (DataSource)ctx.lookup(dataSourceName);
-            
                 // Keep in this loop as long as we encounter concurrency errors
                 do {
                     conn = ds.getConnection();
